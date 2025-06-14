@@ -4,8 +4,9 @@ import pandas as pd
 from .cleaner import Cleaner
 from sklearn import preprocessing
 from sklearn.model_selection import train_test_split
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, DataCollatorWithPadding, TrainingArguments
 from datasets import Dataset
+from .training_utils import get_class_weights
 
 class JutsuClassifier:
     def __init__(self,model_path,data_path=None,
@@ -33,6 +34,39 @@ class JutsuClassifier:
                 raise ValueError("Data path is required to train the model since the model path doesnt exist in huggingface")
 
             train_data,test_data = self.load_data(self.data_path)
+            train_data_df = train_data.to_pandas()
+            test_data_df = test_data.to_pandas()
+
+            all_data = pd.concat([train_data_df,test_data_df]).reset_index(drop=True)
+            class_weights = get_class_weights(all_data)
+
+            self.train_model(train_data,test_data,class_weights)
+
+        self.model = self.load_model(self.model_path)
+
+    def train_model(self,train_data,test_data,class_weights):
+        model = AutoModelForSequenceClassification.from_pretrained(self.model_name,
+                                                                   num_labels=self.num_labels,
+                                                                   id2label=self.label_dict,
+                                                                   )
+        data_collator = DataCollatorWithPadding(tokenizer=self.tokenizer)
+
+        training_args = TrainingArguments(
+            output_dir=self.model_path,
+            learning_rate=2e-4,
+            per_device_train_batch_size=8,
+            per_device_eval_batch_size=8,
+            num_train_epochs=5,
+            weight_decay=0.01,
+            evaluation_strategy='epoch',
+            logging_strategy='epoch',
+            push_to_hub=True,
+        )
+
+
+
+
+
 
     def simplify_jutsu(self,jutsu):
         if "Genjutsu" in jutsu:
@@ -64,6 +98,7 @@ class JutsuClassifier:
 
         # One line for loop that detect the dict
         label_dict = {index: label_name for index, label_name in enumerate(le.__dict__['classes_'].tolist())}
+        self.label_dict = label_dict
         df['label'] = le.transform(df[self.label_column_name].tolist())
 
         #Train test split
