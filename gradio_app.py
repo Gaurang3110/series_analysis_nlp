@@ -109,3 +109,4 @@ if __name__ == '__main__':
     main()
 
     #friendship,hope,sacrifice,battle,self development,betrayal,love,dialogue
+    #AbdullahTarek/jutsu_classifier model for text
