@@ -1,12 +1,15 @@
+import gc
+
 import torch
 import huggingface_hub
 import pandas as pd
 from .cleaner import Cleaner
 from sklearn import preprocessing
 from sklearn.model_selection import train_test_split
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, DataCollatorWithPadding, TrainingArguments
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, DataCollatorWithPadding, TrainingArguments , pipeline
 from datasets import Dataset
-from .training_utils import get_class_weights
+from .training_utils import get_class_weights, compute_metrics
+from .custom_trainer import CustomTrainer
 
 class JutsuClassifier:
     def __init__(self,model_path,data_path=None,
@@ -44,6 +47,14 @@ class JutsuClassifier:
 
         self.model = self.load_model(self.model_path)
 
+    def load_model(self,model_path):
+
+        model = pipeline('text-classification',
+                         model=model_path,
+                         return_all_scores=True
+                         )
+        return model
+
     def train_model(self,train_data,test_data,class_weights):
         model = AutoModelForSequenceClassification.from_pretrained(self.model_name,
                                                                    num_labels=self.num_labels,
@@ -63,10 +74,27 @@ class JutsuClassifier:
             push_to_hub=True,
         )
 
+        trainer = CustomTrainer(
+            model=model,
+            args=training_args,
+            data_collator=data_collator,
+            train_dataset=train_data,
+            eval_dataset=test_data,
+            tokenizer = self.tokenizer,
+            compute_metrics=compute_metrics
+        )
 
+        trainer.set_device(self.device)
+        trainer.set_class_weights(class_weights)
 
+        trainer.train()
 
+        # Flush Memory
+        del trainer,model
+        gc.collect()
 
+        if self.device== 'cuda':
+            torch.cuda.empty_cache()
 
     def simplify_jutsu(self,jutsu):
         if "Genjutsu" in jutsu:
@@ -78,7 +106,6 @@ class JutsuClassifier:
 
     def preprocess_function(self,tokenizer, examples):
         return tokenizer(examples['text_cleaned'], padding="max_length", truncation=True)
-
 
     def load_data(self,data_path):
         df = pd.read_csv(data_path , lines=True)
@@ -122,3 +149,17 @@ class JutsuClassifier:
         else:
             tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         return tokenizer
+
+    def postprocess(self,model_output):
+        output = []
+        for pred in model_output:
+            label = max(pred,key=lambda x: x['score'])['label']
+            output.append(label)
+        return output
+
+    def classify_jutsu(self,text):
+        model_output = self.model(text)
+        predictions = self.postprocess(model_output)
+        return predictions
+
+
