@@ -24,8 +24,8 @@ class CharacterChatBot():
 
     def __init__(self,
                  model_path,
-                 data_path="/content/data/naruto.csv",
-                 huggingface_token=None
+                 data_path="C:/Users/gsrio/Downloads/Series Analysis/data/naruto.csv",
+                huggingface_token=None
                  ):
 
         self.model_path = model_path
@@ -82,10 +82,11 @@ class CharacterChatBot():
         )
         pipeline = transformers.pipeline("text-generation",
                                          model=model_path,
-                                         model_kwargs={"torch_dtype": torch.float16,
-                                                       "quantization_config": bnb_config,
-                                                       }
-                                         )
+                                         device=-1,  # CPU
+                                         model_kwargs={
+                                             "torch_dtype": torch.float32,
+                                         })
+
         return pipeline
 
     def train(self,
@@ -110,13 +111,17 @@ class CharacterChatBot():
             bnb_4bit_compute_dtype=torch.float16,
         )
 
-        model = AutoModelForCausalLM.from_pretrained(base_model_name_or_path,
-                                                     quantization_config=bnb_config,
-                                                     trust_remote_code=True)
+        model = AutoModelForCausalLM.from_pretrained(
+            base_model_name_or_path,
+            torch_dtype=torch.float32,
+            device_map="auto",
+            trust_remote_code=True
+        )
+
         model.config.use_cache = False
 
-        toknizer = AutoTokenizer.from_pretrained(base_model_name_or_path)
-        toknizer.pad_token = toknizer.eos_token
+        tokenizer = AutoTokenizer.from_pretrained(base_model_name_or_path)
+        tokenizer.pad_token = tokenizer.eos_token
 
         lora_alpha = 16
         lora_dropout = 0.1
@@ -127,7 +132,7 @@ class CharacterChatBot():
             lora_dropout=lora_dropout,
             r=lora_r,
             bias="none",
-            task_type="CAUSAL_LM"
+            task_type="CASUAL_LM"
         )
 
         training_arguments = SFTConfig(
@@ -155,7 +160,7 @@ class CharacterChatBot():
             peft_config=peft_config,
             dataset_text_field="prompt",
             max_seq_length=max_seq_len,
-            tokenizer=toknizer,
+            tokenizer=tokenizer,
             args=training_arguments,
         )
 
@@ -163,18 +168,17 @@ class CharacterChatBot():
 
         # Save model
         trainer.model.save_pretrained("final_ckpt")
-        toknizer.save_pretrained("final_ckpt")
+        tokenizer.save_pretrained("final_ckpt")
 
         # Flush memory
         del trainer, model
         gc.collect()
 
-        base_model = AutoModelForCausalLM.from_pretrained(base_model_name_or_path,
-                                                          return_dict=True,
-                                                          quantization_config=bnb_config,
-                                                          torch_dtype=torch.float16,
-                                                          device_map=self.device
-                                                          )
+        base_model = AutoModelForCausalLM.from_pretrained(
+            base_model_name_or_path,
+            torch_dtype=torch.float32,
+            device_map="auto"
+        )
 
         tokenizer = AutoTokenizer.from_pretrained(base_model_name_or_path)
 

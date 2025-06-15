@@ -37,7 +37,6 @@ def get_themes(theme_list_str,subtitles_path,save_path):
 def get_character_network(subtitles_path,ner_path):
     ner = NamedEntityRecognizer()
     ner_df = ner.get_ners(subtitles_path,ner_path)
-
     character_network_generator = CharacterNetworkGenerator()
     relationship_df = character_network_generator.generate_character_network(ner_df)
     html = character_network_generator.draw_network_graph(relationship_df)
@@ -56,7 +55,7 @@ def classify_text(text_classifcation_model, text_classifcation_data_path, text_t
     return output
 
 def chat_with_character_chatbot(message, history):
-    character_chatbot = CharacterChatBot("sri31gaurang/Naruto_Llama-3-8B",
+    character_chatbot = CharacterChatBot("AbdullahTarek/Naruto_Llama-3-8B",
                                          huggingface_token = os.getenv('huggingface_token')
                                          )
 
@@ -126,3 +125,4 @@ if __name__ == '__main__':
 
     #friendship,hope,sacrifice,battle,self development,betrayal,love,dialogue
     #AbdullahTarek/jutsu_classifier model for text
+    #AbdullahTarek/Naruto_Llama-3-8B", for chatbot
