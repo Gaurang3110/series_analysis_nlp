@@ -79,7 +79,7 @@ class JutsuClassifier():
             per_device_eval_batch_size=8,
             num_train_epochs=5,
             weight_decay=0.01,
-            evaluation_strategy="epoch",
+            evaluation_strategy="epoch",  #eval_strategy
             logging_strategy="epoch",
             push_to_hub=True,
         )
@@ -89,7 +89,7 @@ class JutsuClassifier():
             args=training_args,
             train_dataset=train_data,
             eval_dataset=test_data,
-            tokenizer=self.tokenizer,
+            tokenizer=self.tokenizer, #processing_class
             data_collator=data_collator,
             compute_metrics=compute_metrics
         )
